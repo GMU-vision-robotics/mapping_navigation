@@ -40,6 +40,21 @@ python visualize_episodes.py \
 ```
 The script requires installing the python `plyfile` module in order to read the point clouds in AVD provided in `.ply` format. Also make sure that each scene folder contains the appropriate `dense_reconstruction.ply` provided with the rest of the AVD dataset. The `episode_results.pkl` files can be created by running `test_NavNet.py` or `test_MapNet.py` for generating results for navigation and localization respectively.
 
+### Baseline
+A baseline model that takes random actions. Once the agent sees the target object, it localizes the object on the graph map and use the shortest path to reach the goal.
+
+Before running the code, setup the `dataset_dir` to be where `AVD_Minimal` data locates. 
+
+To run the random walker,
+```
+python baseline_random_walker.py
+```
+Another baseline is implemented to rotate through all the orientations at one location to make sure no target object is in sight then move randomly to the neighboring position.
+```
+python baseline_rotate_and_see.py
+```
+
+
 ### Citation
 If you use this code for your research, please consider citing:
 ```
