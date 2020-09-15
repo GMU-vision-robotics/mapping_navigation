@@ -12,6 +12,16 @@ from math import cos, sin, acos, atan2, pi
 from io import StringIO
 import png
 
+TRAIN_WORLDS = ['Home_002_1', 'Home_005_1']
+TEST_WORLDS = ['Home_011_1', 'Home_013_1', 'Home_016_1']
+
+SUPPORTED_ACTIONS = ['right', 'rotate_cw', 'rotate_ccw', 'forward', 'left', 'backward', 'stop']
+
+_Graph = collections.namedtuple('_Graph', ['graph', 'id_to_index', 'index_to_id'])
+
+target_category_list = ['tv', 'dining_table', 'fridge', 'microwave', 'couch']
+mapper_cat2index = {'tv': 72, 'dining_table': 67, 'fridge': 82, 'microwave': 78, 'couch': 63}
+
 def minus_theta_fn(previous_theta, current_theta):
   result = current_theta - previous_theta
   if result < -math.pi:
@@ -20,7 +30,7 @@ def minus_theta_fn(previous_theta, current_theta):
     result -= 2*math.pi
   return result
 
-def cameraPose2currentPose (current_img_id, camera_pose):
+def cameraPose2currentPose (current_img_id, camera_pose, image_structs):
   current_x = camera_pose[0]
   current_z = camera_pose[1]
   for i in range(image_structs.shape[0]):
@@ -29,11 +39,10 @@ def cameraPose2currentPose (current_img_id, camera_pose):
       break
   current_theta = atan2(direction[2], direction[0])
   current_theta = minus_theta_fn(current_theta, pi/2)
-  #print('current_theta = {}'.format(current_theta))
   current_pose = [current_x, current_z, current_theta]
   return current_pose, direction
 
-def readDepthImage (current_world, current_img_id, resolution=224):
+def readDepthImage (current_world, current_img_id, AVD_dir, resolution=224):
   img_id = current_img_id[:-1]+'3'
   reader = png.Reader('{}/{}/high_res_depth/{}.png'.format(AVD_dir, current_world, img_id))
   data = reader.asDirect()
@@ -58,9 +67,6 @@ def project_pixels_to_world_coords (current_depth, current_pose, bbox, gap=2, fo
     tz = dist * math.cos(gamma)
     tx = -dist * math.sin(gamma)
     theta_change = (theta1 - theta0)
-    #print('dist = {}'.format(dist))
-    #print('gamma = {}'.format(gamma))
-    #print('theta_change = {}'.format(theta_change))
     return tx, tz, theta_change
 
   y1, x1, y2, x2 = bbox
@@ -77,7 +83,6 @@ def project_pixels_to_world_coords (current_depth, current_pose, bbox, gap=2, fo
       count += 1
   ## camera intrinsic matrix
   K = np.array([[focal_length, 0, focal_length], [0, focal_length, focal_length], [0, 0, 1]])
-  #print('K = {}'.format(K))
   ## expand kp1 from 2 dimensions to 3 dimensions
   kp1_3d = np.ones((3, kp1.shape[1]))
   kp1_3d[:2, :] = kp1
@@ -85,7 +90,6 @@ def project_pixels_to_world_coords (current_depth, current_pose, bbox, gap=2, fo
   ## backproject kp1_3d through inverse of K and get kp1_3d. x=KX, X is in the camera frame
   ## Now kp1_3d still have the third dimension Z to be 1.0. This is the world coordinates in camera frame after projection.
   kp1_3d = LA.inv(K).dot(kp1_3d)
-  #print('kp1_3d: {}'.format(kp1_3d))
   ## backproject kp1_3d into world coords kp1_4d by using gt-depth
   ## Now kp1_4d has coords in world frame if camera1 (current) frame coincide with the world frame
   kp1_4d = np.ones((4, kp1.shape[1]))
@@ -103,13 +107,6 @@ def project_pixels_to_world_coords (current_depth, current_pose, bbox, gap=2, fo
   #print('kp1_4d: {}'.format(kp1_4d))
   
   ## first compute the rotation and translation from current frame to goal frame
-  '''
-  goal_pose = [0.0, 0.0, 0.0]
-  tx, tz, theta = dense_correspondence_compute_tx_tz_theta(current_pose, goal_pose)
-  #print('tx={}, tz={}, theta={}'.format(tx, tz, theta))
-  R = np.array([[cos(theta), 0, -sin(theta)], [0, 1, 0], [sin(theta), 0, cos(theta)]])
-  T = np.array([tx, 0, tz])
-  '''
   ## then compute the transformation matrix from goal frame to current frame
   ## thransformation matrix is the camera2's extrinsic matrix
   tx, tz, theta = current_pose
@@ -118,8 +115,6 @@ def project_pixels_to_world_coords (current_depth, current_pose, bbox, gap=2, fo
   transformation_matrix = np.empty((3, 4))
   transformation_matrix[:3, :3] = R
   transformation_matrix[:3, 3] = T
-  #transformation_matrix[:3, :3] = R.T
-  #transformation_matrix[:3, 3] = -R.T.dot(T)
 
   ## transform kp1_4d from camera1(current) frame to camera2(goal) frame through transformation matrix
   kp2_3d = transformation_matrix.dot(kp1_4d)
@@ -188,30 +183,6 @@ def read_cached_data(should_load_images, dataset_root, targets_file_name, output
 
   result_data = {}
   
-  ## loading targets
-  #annotated_target_path = os.path.join(dataset_root, 'Meta', targets_file_name + '.npy')
-  #result_data['targets'] = np.load(annotated_target_path).item()
-  '''
-  depth_image_path = os.path.join(dataset_root, 'Meta/depth_imgs.npy')
-  ## loading depth
-  depth_data = np.load(depth_image_path, encoding='bytes').item()
-
-  ## processing depth
-  for home_id in depth_data:
-    if home_id == Home_name:
-      images = depth_data[home_id]
-      for image_id in images:
-        depth = images[image_id]
-        assert 1==2
-        depth = cv2.resize(
-            depth / _MAX_DEPTH_VALUE, (output_size, output_size),
-            interpolation=cv2.INTER_NEAREST)
-        depth_mask = (depth > 0).astype(np.float32)
-        depth = np.dstack((depth, depth_mask))
-        images[image_id] = depth
-
-  result_data['DEPTH'] = depth_data[Home_name]
-  '''
   if should_load_images:
     image_path = os.path.join(dataset_root, 'Meta/imgs.npy')
     ## loading imgs
@@ -291,4 +262,3 @@ class ActiveVisionDatasetEnv():
         if next_image:
           graph.add_edge(id_to_index[image_id], id_to_index[next_image], action=action)
     self._cur_graph = _Graph(graph, id_to_index, index_to_id)
-##==========================================================================================================
