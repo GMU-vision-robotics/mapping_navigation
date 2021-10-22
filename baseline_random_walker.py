@@ -18,7 +18,7 @@ from statistics import mean
 from baseline_utils import target_category_list, mapper_cat2index, TRAIN_WORLDS, TEST_WORLDS, SUPPORTED_ACTIONS, minus_theta_fn, cameraPose2currentPose, readDepthImage, project_pixels_to_world_coords, read_all_poses, read_cached_data, ActiveVisionDatasetEnv
 
 # setup parameters
-dataset_dir = '/home/reza/Datasets/ActiveVisionDataset/AVD_Minimal'
+dataset_dir = '/home/yimeng/Datasets/ActiveVisionDataset/AVD_Minimal'
 saved_folder = 'baseline_random_train_temp'
 detection_thresh = 0.9
 mode = 'train' #'test'
@@ -29,6 +29,8 @@ np.random.seed(0)
 
 if not os.path.exists(saved_folder):
   os.mkdir(saved_folder)
+
+TRAIN_WORLDS = ['Home_002_1']
 
 #=======================================================================================================================
 if mode == 'train':
@@ -171,6 +173,10 @@ for world_id in range(len(WORLDS)):
           list_actions.append(AVD.action(path[j], path[j + 1]))
         current_img_id = target_img_id
 
+        
+
+
+
   ## step 3: rotate and find the best view towards the target
         ## look around to see if target category is there
         flag_target_detected = False
@@ -195,6 +201,17 @@ for world_id in range(len(WORLDS)):
           list_visited_img_id.append(next_img_id)
           list_actions.append(action)
           current_img_id = next_img_id
+
+        #assert 1==2
+        '''
+        # plot all images along the path
+        for idx, img_id in enumerate(list_visited_img_id):
+          print(f'idx = {idx}, action = {list_actions[idx]}')
+          current_img = cached_data['IMAGE'][img_id.encode()]
+          plt.imshow(current_img)
+          plt.show()
+        assert 1==2
+        '''
 
   ## Evaluation stage
         num_steps = len(list_actions)
@@ -246,6 +263,7 @@ for world_id in range(len(WORLDS)):
           x, z, rot, scale = all_poses[img_id]
           xs.append(x)
           zs.append(z)
+
         plt.plot(xs, zs, color='black', marker='o', markersize=5)
         ## draw the start point and end point and middle point
         x, z, rot, scale = all_poses[list_visited_img_id[0]]
@@ -260,10 +278,12 @@ for world_id in range(len(WORLDS)):
         #theta = minus_theta_fn(theta, pi/2)
         end_x = x + cos(theta)
         end_z = z + sin(theta)
-        plt.arrow(x, z, 2*cos(theta), 2*sin(theta), head_width=0.3, head_length=0.4, fc='r', ec='r')
+        plt.arrow(x, z, 0.5*cos(theta), 0.5*sin(theta), head_width=0.3, head_length=0.4, fc='r', ec='r')
         plt.grid()
+        plt.axis('scaled')
         plt.title('env: {}, target: {}, steps: {}, success: {}\noptimal steps: {}, ratio: {:.2f}'.format(current_world, target_category, num_steps, success, minimum_optimal_steps, ratio_optimal_policy))
         #plt.show()
+
         plt.axis('scaled')
         if world_id == 0:
           plt.xticks(np.arange(-6, 5, 1.0))
@@ -294,6 +314,8 @@ for world_id in range(len(WORLDS)):
         plt.title('env: {}, target: {}, detection_score: {:.2f}'.format(current_world, target_category, detection_score))
         plt.savefig('{}/env_{}_category_{}_id_{}_right.jpg'.format(saved_folder, current_world, target_category, idx), bbox_inches='tight')
         plt.close()
+
+        #assert 1==2
 
       ## compute average ratio of the successful runs
       avg_ratio = mean(list_ratio_optimal_policy)

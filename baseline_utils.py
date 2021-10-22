@@ -11,6 +11,7 @@ import math
 from math import cos, sin, acos, atan2, pi
 from io import StringIO
 import png
+import matplotlib.pyplot as plt
 
 TRAIN_WORLDS = ['Home_002_1', 'Home_005_1']
 TEST_WORLDS = ['Home_011_1', 'Home_013_1', 'Home_016_1']
@@ -54,7 +55,10 @@ def readDepthImage (current_world, current_img_id, AVD_dir, resolution=224):
   image = np.stack(image, axis=0)
   image = image.astype(np.float32)
   image = image/1000.0
-  depth = cv2.resize(image, (resolution, resolution), interpolation=cv2.INTER_NEAREST)
+  if resolution > 0:
+    depth = cv2.resize(image, (resolution, resolution), interpolation=cv2.INTER_NEAREST)
+  else:
+    depth = image
   return depth
 
 def project_pixels_to_world_coords (current_depth, current_pose, bbox, gap=2, focal_length=112, resolution=224, start_pixel=1):
@@ -194,7 +198,23 @@ def read_cached_data(should_load_images, dataset_root, targets_file_name, output
 
   return result_data
 
+def get_pose(current_img_id, all_poses, image_structs):
+  current_camera_pose = all_poses[current_img_id] ## x, z, R, f
+  current_pose, direction = cameraPose2currentPose(current_img_id, current_camera_pose, image_structs)
+  return current_pose
+
+def load_structs(scene_path):
+  image_structs_path = os.path.join(scene_path,'image_structs.mat')
+  image_structs = sio.loadmat(image_structs_path)
+  image_structs = image_structs['image_structs']
+  image_structs = image_structs[0]
+  return image_structs
+
 ##==========================================================================================================================================================================
+#dataset_dir = '/home/yimeng/Datasets/ActiveVisionDataset/AVD_Minimal'
+#cached_data = read_cached_data(True, dataset_dir, targets_file_name=None, output_size=224, Home_name='Home_002_1'.encode()) ## encode() convert string to byte
+  
+
 class ActiveVisionDatasetEnv():
   def __init__(self, image_list, current_world, dataset_root):
     self._episode_length = 50
@@ -256,9 +276,31 @@ class ActiveVisionDatasetEnv():
     for image_id in image_list:
       image_id = image_id.decode()
       for action in self._actions:
-        if action == 'stop':
+        if action == 'stop' or action == 'left' or action == 'right' or action == 'backward':
           continue
         next_image = self._all_graph[image_id][action]
         if next_image:
           graph.add_edge(id_to_index[image_id], id_to_index[next_image], action=action)
+
+          '''
+          current_img = cached_data['IMAGE'][image_id.encode()]
+          next_img = cached_data['IMAGE'][next_image.encode()]
+
+          fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10,6))
+          ax[0].imshow(current_img)
+          ax[0].get_xaxis().set_visible(False)
+          ax[0].get_yaxis().set_visible(False)
+          ax[0].set_title("current_img")
+          ax[1].imshow(next_img)
+          ax[1].get_xaxis().set_visible(False)
+          ax[1].get_yaxis().set_visible(False)
+          ax[1].set_title("next_img")
+
+          fig.tight_layout()
+          #fig.savefig('{}/img_{}_proposal_{}.jpg'.format(saved_folder, i, j))
+          #plt.close()
+          fig.suptitle(f'action = {action}, current_id = {image_id}, next_id = {next_image}')
+          plt.show()
+          '''
+
     self._cur_graph = _Graph(graph, id_to_index, index_to_id)

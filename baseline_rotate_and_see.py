@@ -18,8 +18,8 @@ from statistics import mean
 from baseline_utils import target_category_list, mapper_cat2index, TRAIN_WORLDS, TEST_WORLDS, SUPPORTED_ACTIONS, minus_theta_fn, cameraPose2currentPose, readDepthImage, project_pixels_to_world_coords, read_all_poses, read_cached_data, ActiveVisionDatasetEnv
 
 # setup parameters
-dataset_dir = '/home/reza/Datasets/ActiveVisionDataset/AVD_Minimal'
-saved_folder = 'baseline_rotate_train_temp'
+dataset_dir = '/home/yimeng/Datasets/ActiveVisionDataset/AVD_Minimal'
+saved_folder = 'baseline_rotate_and_see_temp'
 detection_thresh = 0.9
 mode = 'train' #'test'
 
